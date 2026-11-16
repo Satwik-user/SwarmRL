@@ -1,0 +1,76 @@
+# ==============================================================================
+# SwarmRL / SWARMDR: Standard .gitignore Specification
+# ==============================================================================
+
+# 1. Virtual Environments (Root level only)
+/venv/
+/.venv/
+/env/
+/ENV/
+/env.bak/
+/venv.bak/
+
+# 2. Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 3. Model Weights & Training Checkpoints
+# Exclude heavy intermediate training checkpoints to keep repo lightweight
+checkpoints/*.pt
+checkpoints/*.pth
+checkpoints/*.onnx
+checkpoints/*.ckpt
+# Track the directory structure and optionally allow the baseline checkpoint
+!checkpoints/.gitkeep
+!checkpoints/best_policy.pt
+
+# 4. Telemetry, Logs & Raw Simulation Data
+*.log
+logs/
+data/*.json
+data/*.csv
+data/*.pcd
+data/*.ply
+data/*.octree
+!data/.gitkeep
+
+# 5. Root temporary outputs
+benchmark_results.json
+
+# 6. IDE, Editors & OS Metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 7. Distribution & Packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 8. Environment Secrets & Credentials
+.env
+.env.*
+!.env.example

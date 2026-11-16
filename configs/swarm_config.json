@@ -1,0 +1,29 @@
+{
+  "world": {
+    "dimensions": [200.0, 200.0, 50.0],
+    "drone_radius": 1.5,
+    "warning_radius": 4.0,
+    "max_speed": 8.0,
+    "accel_scale": 2.0,
+    "comm_radius": 50.0,
+    "survivor_detect_radius": 30.0,
+    "survivor_rescue_radius": 5.0
+  },
+  "swarm": {
+    "num_agents": 20,
+    "num_survivors": 8,
+    "k_nearest_neighbors": 4,
+    "max_steps": 300
+  },
+  "training": {
+    "lr_actor": 0.0003,
+    "lr_critic": 0.001,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "clip_ratio": 0.2,
+    "entropy_coef": 0.01,
+    "rollout_steps": 200,
+    "epochs": 5,
+    "batch_size": 128
+  }
+}
