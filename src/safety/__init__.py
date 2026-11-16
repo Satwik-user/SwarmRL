@@ -1,12 +1,19 @@
-"""
-Module: src.safety
-Owner: Arkendu Chatterjee
-Responsibilities:
-- Deterministic Safety Shield (Velocity Obstacles / ORCA / Control Barrier Functions).
-- Anti-tunneling continuous swept-path collision math.
-- Action filter guaranteeing minimum inter-drone separation (zero-collision guarantee).
-- Safety ablation runner: benchmark comparisons of Shield ON vs. Shield OFF.
-"""
-from .safety_shield import SafetyShield
+"""Deterministic safety filtering."""
 
-__all__ = ["SafetyShield"]
+from .safety_shield import (
+    AABB,
+    Neighbor,
+    SafetyConfig,
+    SafetyResult,
+    SafetyShield,
+    segment_intersects_aabb,
+)
+
+__all__ = [
+    "AABB",
+    "Neighbor",
+    "SafetyConfig",
+    "SafetyResult",
+    "SafetyShield",
+    "segment_intersects_aabb",
+]
