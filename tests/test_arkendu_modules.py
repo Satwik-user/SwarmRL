@@ -1,7 +1,16 @@
 import unittest
 
-from flight_dynamics import FlightDynamics, FlightDynamicsConfig, FlightState
-from safety_shield import AABB, Neighbor, SafetyShield, segment_intersects_aabb
+from src.dynamics.flight_dynamics import (
+    FlightDynamics,
+    FlightDynamicsConfig,
+    FlightState,
+)
+from src.safety.safety_shield import (
+    AABB,
+    Neighbor,
+    SafetyShield,
+    segment_intersects_aabb,
+)
 
 
 class FlightDynamicsTests(unittest.TestCase):

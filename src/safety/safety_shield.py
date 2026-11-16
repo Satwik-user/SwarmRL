@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from math import sqrt
 from typing import Iterable, Optional, Sequence, Tuple
 
-from flight_dynamics import Vector3
+from src.dynamics.flight_dynamics import Vector3
 
 
 def _add(a: Vector3, b: Vector3) -> Vector3:

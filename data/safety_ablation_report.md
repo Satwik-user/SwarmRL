@@ -10,7 +10,7 @@ checks use continuous swept segments rather than discrete waypoint samples.
 Run the experiment with:
 
 ```text
-python safety_ablation.py
+python -m scripts.safety_ablation
 ```
 
 ## Result

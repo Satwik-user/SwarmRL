@@ -1,6 +1,6 @@
 """Reproducible safety-shield ablation experiment.
 
-Run with ``python safety_ablation.py`` to compare raw policy velocities with
+Run with ``python -m scripts.safety_ablation`` to compare raw policy velocities with
 the deterministic shield over identical obstacle and neighbor scenarios.
 """
 
@@ -9,7 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Iterable
 
-from safety_shield import AABB, Neighbor, SafetyShield, Vector3, segment_intersects_aabb
+from src.safety.safety_shield import (
+    AABB,
+    Neighbor,
+    SafetyShield,
+    Vector3,
+    segment_intersects_aabb,
+)
 
 
 @dataclass(frozen=True)
