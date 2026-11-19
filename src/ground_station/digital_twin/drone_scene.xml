@@ -1,0 +1,151 @@
+<mujoco model="disaster_drone_inspection">
+  <compiler angle="degree" coordinate="local"/>
+  <option gravity="0 0 0" timestep="0.01"/>
+
+  <visual>
+    <global offwidth="1920" offheight="1080"/>
+    <quality shadowsize="2048"/>
+    <headlight ambient="0.35 0.35 0.38" diffuse="0.65 0.65 0.68" specular="0.2 0.2 0.2"/>
+  </visual>
+
+  <asset>
+    <!-- Studio Skybox & Ground Plane -->
+    <texture type="skybox" builtin="gradient" rgb1="0.16 0.20 0.26" rgb2="0.05 0.06 0.08" width="512" height="512"/>
+    <texture name="floor_grid" type="2d" builtin="checker" width="512" height="512" rgb1="0.14 0.15 0.18" rgb2="0.09 0.10 0.12"/>
+    <material name="floor_mat" texture="floor_grid" texrepeat="25 25" reflectance="0.15" shininess="0.2"/>
+
+    <!-- Drone Materials (Matching Prototype D01 Palette) -->
+    <material name="drone_chassis" rgba="0.12 0.13 0.15 1.0" specular="0.6" shininess="0.5"/>
+    <material name="chassis_trim" rgba="0.95 0.50 0.10 1.0" specular="0.6" shininess="0.5"/>
+    <material name="drone_arm" rgba="0.25 0.27 0.30 1.0" specular="0.4" shininess="0.3"/>
+    <material name="motor_mat" rgba="0.08 0.08 0.09 1.0" specular="0.7" shininess="0.6"/>
+    <material name="rotor_front" rgba="0.95 0.25 0.15 0.85" specular="0.5"/>
+    <material name="rotor_rear" rgba="0.15 0.65 0.95 0.85" specular="0.5"/>
+    <material name="prop_blade" rgba="0.06 0.06 0.07 0.95" specular="0.5"/>
+    <material name="drone_indicator" rgba="0.2 0.95 0.4 1.0" emission="0.7"/>
+    <material name="sensor_lens" rgba="0.1 0.7 1.0 1.0" emission="0.5" specular="0.9"/>
+    <material name="landing_gear" rgba="0.20 0.22 0.25 1.0" specular="0.3"/>
+    <material name="led_port" rgba="1.0 0.15 0.15 1.0" emission="0.9"/>
+    <material name="led_starboard" rgba="0.15 1.0 0.25 1.0" emission="0.9"/>
+    <material name="led_tail" rgba="1.0 1.0 1.0 1.0" emission="0.9"/>
+
+    <!-- Landing Pad Materials -->
+    <material name="pad_dark" rgba="0.11 0.12 0.14 1.0"/>
+    <material name="pad_yellow" rgba="0.92 0.75 0.15 1.0"/>
+    <material name="pad_white" rgba="0.85 0.88 0.92 1.0"/>
+    <material name="pad_ring" rgba="0.22 0.24 0.28 1.0"/>
+
+    <!-- Auxiliary Spheres -->
+    <material name="collision_bubble" rgba="0.2 0.6 1.0 0.12"/>
+    <material name="comm_sphere_mat" rgba="0.2 0.55 1.0 0.0"/>
+  </asset>
+
+  <worldbody>
+    <!-- Three-Point Studio Lighting -->
+    <light directional="true" pos="12 10 18" dir="-0.5 -0.4 -0.8" diffuse="0.85 0.85 0.85" specular="0.4 0.4 0.4"/>
+    <light directional="true" pos="-12 -12 14" dir="0.5 0.5 -0.6" diffuse="0.45 0.48 0.52" specular="0.2 0.2 0.2"/>
+    <light directional="false" pos="0 0 7" dir="0 0 -1" diffuse="0.65 0.65 0.70" specular="0.5 0.5 0.5" cutoff="50"/>
+
+    <!-- Showcase Floor (20m x 20m) -->
+    <geom name="studio_floor" type="plane" size="10 10 0.1" material="floor_mat"/>
+
+    <!-- Helipad Landing Markings (Target Pad) -->
+    <geom name="pad_outer_circle" type="cylinder" pos="0 0 0.002" size="3.2 0.001" material="pad_ring" contype="0" conaffinity="0"/>
+    <geom name="pad_inner_circle" type="cylinder" pos="0 0 0.003" size="2.9 0.001" material="pad_dark" contype="0" conaffinity="0"/>
+    <geom name="pad_border_ring" type="cylinder" pos="0 0 0.004" size="2.6 0.001" material="pad_white" contype="0" conaffinity="0"/>
+    <geom name="pad_surface" type="cylinder" pos="0 0 0.005" size="2.45 0.001" material="pad_dark" contype="0" conaffinity="0"/>
+    <geom name="pad_h_stem_l" type="box" pos="0 0.6 0.006" size="0.9 0.12 0.001" material="pad_yellow" contype="0" conaffinity="0"/>
+    <geom name="pad_h_stem_r" type="box" pos="0 -0.6 0.006" size="0.9 0.12 0.001" material="pad_yellow" contype="0" conaffinity="0"/>
+    <geom name="pad_h_bar" type="box" pos="0 0 0.006" size="0.12 0.6 0.001" material="pad_yellow" contype="0" conaffinity="0"/>
+
+    <!-- Orientation Arrow on Helipad (Pointing Forward +X) -->
+    <geom name="pad_fwd_arrow1" type="box" pos="1.5 0 0.006" quat="0.9239 0 0 0.3827" size="0.4 0.06 0.001" material="pad_white" contype="0" conaffinity="0"/>
+    <geom name="pad_fwd_arrow2" type="box" pos="1.5 0 0.006" quat="0.9239 0 0 -0.3827" size="0.4 0.06 0.001" material="pad_white" contype="0" conaffinity="0"/>
+
+    <!-- ==================== DISASTER RESPONSE DRONE MODEL ==================== -->
+    <body name="drone" pos="0 0 1.2">
+      <!-- 6-DOF Freejoint for smooth positioning / hovering -->
+      <freejoint name="drone_joint"/>
+
+      <!-- Central Chassis Body (Radius 0.9m, Height 0.5m) -->
+      <geom name="chassis_core" type="cylinder" size="0.90 0.22" material="drone_chassis"/>
+      <geom name="chassis_top_plate" type="cylinder" pos="0 0 0.23" size="0.75 0.02" material="drone_chassis"/>
+      <geom name="chassis_top_bezel" type="cylinder" pos="0 0 0.24" size="0.55 0.015" material="chassis_trim"/>
+      <geom name="chassis_bottom_plate" type="cylinder" pos="0 0 -0.23" size="0.75 0.02" material="drone_chassis"/>
+
+      <!-- Central Avionics Dome & GNSS-RTK Beacon -->
+      <geom name="avionics_dome" type="sphere" pos="0 0 0.24" size="0.42" material="drone_indicator"/>
+
+      <!-- Search & Rescue Gimbal Camera Turret (Front Nose +X) -->
+      <geom name="gimbal_mount" type="cylinder" pos="0.92 0 -0.10" size="0.10 0.08" material="drone_arm"/>
+      <geom name="gimbal_casing" type="sphere" pos="1.02 0 -0.14" size="0.14" material="drone_chassis"/>
+      <geom name="gimbal_lens_vis" type="cylinder" pos="1.15 0.04 -0.14" quat="0.7071 0 0.7071 0" size="0.045 0.02" material="sensor_lens"/>
+      <geom name="gimbal_lens_ir" type="cylinder" pos="1.15 -0.04 -0.14" quat="0.7071 0 0.7071 0" size="0.035 0.02" material="motor_mat"/>
+
+      <!-- Navigation / Position Lights -->
+      <geom name="nav_led_port" type="sphere" pos="0 0.92 0.0" size="0.05" material="led_port"/>
+      <geom name="nav_led_starboard" type="sphere" pos="0 -0.92 0.0" size="0.05" material="led_starboard"/>
+      <geom name="nav_led_tail" type="sphere" pos="-0.92 0 0.0" size="0.05" material="led_tail"/>
+
+      <!-- Cross Boom Arms (Span 4.24m Diagonal) -->
+      <geom name="arm_diagonal_1" type="capsule" fromto="-1.5 -1.5 0 1.5 1.5 0" size="0.10" material="drone_arm"/>
+      <geom name="arm_diagonal_2" type="capsule" fromto="-1.5 1.5 0 1.5 -1.5 0" size="0.10" material="drone_arm"/>
+
+      <!-- Landing Skids & Heavy-Duty Struts -->
+      <geom name="strut_fl" type="capsule" fromto="0.6 0.6 -0.22 0.75 0.75 -0.65" size="0.035" material="landing_gear"/>
+      <geom name="strut_fr" type="capsule" fromto="0.6 -0.6 -0.22 0.75 -0.75 -0.65" size="0.035" material="landing_gear"/>
+      <geom name="strut_bl" type="capsule" fromto="-0.6 0.6 -0.22 -0.75 0.75 -0.65" size="0.035" material="landing_gear"/>
+      <geom name="strut_br" type="capsule" fromto="-0.6 -0.6 -0.22 -0.75 -0.75 -0.65" size="0.035" material="landing_gear"/>
+      <geom name="skid_tube_left" type="capsule" fromto="-1.1 0.75 -0.65 1.1 0.75 -0.65" size="0.045" material="landing_gear"/>
+      <geom name="skid_tube_right" type="capsule" fromto="-1.1 -0.75 -0.65 1.1 -0.75 -0.65" size="0.045" material="landing_gear"/>
+
+      <!-- 1.8m Bounding Collision Sphere (Transparent visual shell) -->
+      <geom name="collision_bubble_geom" type="sphere" size="1.8" material="collision_bubble" contype="0" conaffinity="0"/>
+
+      <!-- 10m Scaled Communication Range Sphere (Visual indicator, initially transparent) -->
+      <geom name="comm_sphere_geom" type="sphere" size="8.0" material="comm_sphere_mat" contype="0" conaffinity="0"/>
+
+      <!-- ==================== ROTOR UNITS ==================== -->
+      <!-- Front-Left Rotor Unit (+1.5, +1.5) -->
+      <geom name="motor_fl" type="cylinder" pos="1.5 1.5 -0.04" size="0.18 0.10" material="motor_mat"/>
+      <body name="rotor_fl" pos="1.5 1.5 0.10">
+        <joint name="prop_fl_joint" type="hinge" axis="0 0 1" damping="0.001"/>
+        <geom name="rotor_fl_disc" type="cylinder" size="0.65 0.02" material="rotor_front" contype="0" conaffinity="0"/>
+        <geom name="blade_fl_1" type="capsule" fromto="-0.62 0 0.02 0.62 0 0.02" size="0.035" material="prop_blade"/>
+        <geom name="blade_fl_2" type="capsule" fromto="0 -0.62 0.02 0 0.62 0.02" size="0.035" material="prop_blade"/>
+        <geom name="spinner_fl" type="sphere" pos="0 0 0.04" size="0.07" material="motor_mat"/>
+      </body>
+
+      <!-- Front-Right Rotor Unit (+1.5, -1.5) -->
+      <geom name="motor_fr" type="cylinder" pos="1.5 -1.5 -0.04" size="0.18 0.10" material="motor_mat"/>
+      <body name="rotor_fr" pos="1.5 -1.5 0.10">
+        <joint name="prop_fr_joint" type="hinge" axis="0 0 1" damping="0.001"/>
+        <geom name="rotor_fr_disc" type="cylinder" size="0.65 0.02" material="rotor_front" contype="0" conaffinity="0"/>
+        <geom name="blade_fr_1" type="capsule" fromto="-0.62 0 0.02 0.62 0 0.02" size="0.035" material="prop_blade"/>
+        <geom name="blade_fr_2" type="capsule" fromto="0 -0.62 0.02 0 0.62 0.02" size="0.035" material="prop_blade"/>
+        <geom name="spinner_fr" type="sphere" pos="0 0 0.04" size="0.07" material="motor_mat"/>
+      </body>
+
+      <!-- Rear-Left Rotor Unit (-1.5, +1.5) -->
+      <geom name="motor_bl" type="cylinder" pos="-1.5 1.5 -0.04" size="0.18 0.10" material="motor_mat"/>
+      <body name="rotor_bl" pos="-1.5 1.5 0.10">
+        <joint name="prop_bl_joint" type="hinge" axis="0 0 1" damping="0.001"/>
+        <geom name="rotor_bl_disc" type="cylinder" size="0.65 0.02" material="rotor_rear" contype="0" conaffinity="0"/>
+        <geom name="blade_bl_1" type="capsule" fromto="-0.62 0 0.02 0.62 0 0.02" size="0.035" material="prop_blade"/>
+        <geom name="blade_bl_2" type="capsule" fromto="0 -0.62 0.02 0 0.62 0.02" size="0.035" material="prop_blade"/>
+        <geom name="spinner_bl" type="sphere" pos="0 0 0.04" size="0.07" material="motor_mat"/>
+      </body>
+
+      <!-- Rear-Right Rotor Unit (-1.5, -1.5) -->
+      <geom name="motor_br" type="cylinder" pos="-1.5 -1.5 -0.04" size="0.18 0.10" material="motor_mat"/>
+      <body name="rotor_br" pos="-1.5 -1.5 0.10">
+        <joint name="prop_br_joint" type="hinge" axis="0 0 1" damping="0.001"/>
+        <geom name="rotor_br_disc" type="cylinder" size="0.65 0.02" material="rotor_rear" contype="0" conaffinity="0"/>
+        <geom name="blade_br_1" type="capsule" fromto="-0.62 0 0.02 0.62 0 0.02" size="0.035" material="prop_blade"/>
+        <geom name="blade_br_2" type="capsule" fromto="0 -0.62 0.02 0 0.62 0.02" size="0.035" material="prop_blade"/>
+        <geom name="spinner_br" type="sphere" pos="0 0 0.04" size="0.07" material="motor_mat"/>
+      </body>
+
+    </body>
+  </worldbody>
+</mujoco>
