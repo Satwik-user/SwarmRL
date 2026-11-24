@@ -13,6 +13,7 @@ def run_benchmark(args):
     print(f"Model Checkpoint: {args.checkpoint}")
     print(f"Swarm Size: {args.agents} Drones in 3D Space")
     print(f"Communication Radius: {args.comm_radius}m")
+    print(f"Safety Shield: {'ENABLED (Zero-Collision Projection)' if args.shield else 'DISABLED (Raw Baseline)'}")
     print(f"Benchmark Episodes: {args.episodes}")
     print("------------------------------------------------------------------\n")
 
@@ -22,6 +23,7 @@ def run_benchmark(args):
         num_survivors=args.survivors,
         max_steps=args.max_steps,
         k_neighbors=args.k_neighbors,
+        enable_safety_shield=args.shield,
     )
 
     agent = MAPPOAgent(
@@ -107,6 +109,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-steps", type=int, default=300)
     parser.add_argument("--k-neighbors", type=int, default=4)
     parser.add_argument("--episodes", type=int, default=5)
+    parser.add_argument("--shield", action="store_true", help="Enable Arkendu's deterministic safety shield during benchmark")
     parser.add_argument("--seed", type=int, default=100)
     parser.add_argument("--output-json", type=str, default="benchmark_results.json")
 

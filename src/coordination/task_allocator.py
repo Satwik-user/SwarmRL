@@ -145,3 +145,31 @@ def release_tasks_of(drones: List[DroneState], dead_ids: Set[int]) -> List[int]:
                 freed.append(d.current_task)
                 d.current_task = None
     return freed
+
+
+class TaskAllocator:
+    """
+    Decentralized Task & Role Allocation Engine using Greedy Global Utility Auction.
+    Wraps auction logic for coordination between drones and tasks.
+    """
+    def __init__(self, reserve_battery: float = 0.15, distance_weight: float = 1.0):
+        self.reserve_battery = reserve_battery
+        self.distance_weight = distance_weight
+
+    def bid(self, drone: DroneState, task: Task) -> Optional[float]:
+        return bid(drone, task, reserve=self.reserve_battery, distance_weight=self.distance_weight)
+
+    def allocate(self, drones: List[DroneState], tasks: List[Task]) -> Dict[int, int]:
+        return run_auction(drones, tasks)
+
+    @staticmethod
+    def create_tasks_from_survivors(survivors, cell_of, priority: float = 10.0) -> List[Task]:
+        return tasks_from_survivors(survivors, cell_of, priority=priority)
+
+    @staticmethod
+    def create_tasks_for_verification(candidates, cell_of, priority: float = 5.0) -> List[Task]:
+        return tasks_for_verification(candidates, cell_of, priority=priority)
+
+    @staticmethod
+    def release_dead_tasks(drones: List[DroneState], dead_ids: Set[int]) -> List[int]:
+        return release_tasks_of(drones, dead_ids)

@@ -38,6 +38,8 @@ data/*.csv
 data/*.pcd
 data/*.ply
 data/*.octree
+data/*.png
+data/*.gif
 !data/.gitkeep
 
 # 5. Root temporary outputs

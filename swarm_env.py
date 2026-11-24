@@ -2,6 +2,10 @@ import numpy as np
 import gymnasium as gym
 from pettingzoo.utils.env import ParallelEnv
 
+from src.perception.drone_model import Obstacle
+from src.perception.thermal import _los_clear
+from src.safety.safety_shield import SafetyShield, SafetyConfig, AABB, Neighbor
+
 class SwarmEnv(ParallelEnv):
     """
     SwarmRL 3D Multi-Agent Reinforcement Learning Environment.
@@ -29,6 +33,8 @@ class SwarmEnv(ParallelEnv):
         world_size=(200.0, 200.0, 50.0),  # 200m x 200m x 50m altitude
         max_steps=300,
         k_neighbors=4,
+        enable_thermal_los=True,
+        enable_safety_shield=False,
     ):
         super().__init__()
         self.num_agents_count = num_agents
@@ -37,6 +43,8 @@ class SwarmEnv(ParallelEnv):
         self.world_size = np.array(world_size, dtype=np.float32)
         self.max_steps = max_steps
         self.k_neighbors = k_neighbors
+        self.enable_thermal_los = enable_thermal_los
+        self.enable_safety_shield = enable_safety_shield
 
         self.possible_agents = [f"drone_{i}" for i in range(num_agents)]
         self.agents = self.possible_agents[:]
@@ -57,6 +65,34 @@ class SwarmEnv(ParallelEnv):
             [130.0, 120.0, 0.0, 35.0, 40.0, 45.0],
             [80.0, 80.0, 0.0, 30.0, 30.0, 25.0],
         ], dtype=np.float32)
+
+        # Perception obstacles (Bhargav's model for thermal LOS occlusion)
+        self.perception_obstacles = [
+            Obstacle(
+                name=f"building_{i}",
+                obs_type="Building",
+                pos=np.array([obs[0] + obs[3] / 2.0, obs[1] + obs[4] / 2.0, obs[2] + obs[5] / 2.0]),
+                shape="box",
+                size_params=np.array([obs[3], obs[4], obs[5]]),
+            )
+            for i, obs in enumerate(self.obstacles)
+        ]
+
+        # Safety AABBs (Arkendu's swept-path collision shield)
+        self.safety_aabbs = [
+            AABB(
+                minimum=(float(obs[0]), float(obs[1]), float(obs[2])),
+                maximum=(float(obs[0] + obs[3]), float(obs[1] + obs[4]), float(obs[2] + obs[5])),
+            )
+            for obs in self.obstacles
+        ]
+        self.safety_shield = SafetyShield(
+            SafetyConfig(
+                drone_radius=self.drone_radius,
+                separation_margin=2.0,
+                max_speed=self.max_speed,
+            )
+        )
 
         # Volumetric 3D Search Coverage Grid: 20x20x5 voxels
         self.grid_dims = np.array([20, 20, 5], dtype=np.int32)
@@ -108,11 +144,11 @@ class SwarmEnv(ParallelEnv):
         self.episode_near_misses = 0
         self.coverage_grid.fill(False)
 
-        # Initialize 3D positions outside obstacles
+        # Initialize 3D positions outside obstacles with initial separation
         self.agent_positions = {}
         self.agent_velocities = {}
         for agent in self.agents:
-            self.agent_positions[agent] = self._sample_free_position(min_z=5.0)
+            self.agent_positions[agent] = self._sample_free_position(min_z=5.0, others=list(self.agent_positions.values()))
             self.agent_velocities[agent] = np.zeros(3, dtype=np.float32)
 
         # Initialize 3D survivor locations (ground or collapsed debris levels)
@@ -126,7 +162,7 @@ class SwarmEnv(ParallelEnv):
         infos = {agent: {} for agent in self.agents}
         return observations, infos
 
-    def _sample_free_position(self, min_z=2.0, max_z=None):
+    def _sample_free_position(self, min_z=2.0, max_z=None, min_dist_to_others=6.0, others=None):
         max_alt = max_z if max_z is not None else self.world_size[2] - 2.0
         for _ in range(500):
             pt = np.array([
@@ -142,8 +178,14 @@ class SwarmEnv(ParallelEnv):
                     obs[2] <= pt[2] <= obs[2] + obs[5] + self.drone_radius):
                     inside = True
                     break
-            if not inside:
-                return pt
+            if inside:
+                continue
+
+            if others:
+                if any(np.linalg.norm(pt - o) < min_dist_to_others for o in others):
+                    continue
+
+            return pt
         return np.array([10.0, 10.0, min_z], dtype=np.float32)
 
     def _update_coverage(self):
@@ -194,11 +236,20 @@ class SwarmEnv(ParallelEnv):
         unfound = np.where(~self.survivor_found)[0]
         if len(unfound) > 0:
             dists = np.linalg.norm(self.survivor_positions[unfound] - pos, axis=1)
-            c_idx = np.argmin(dists)
-            if dists[c_idx] <= self.survivor_detect_radius:
-                target_pos = self.survivor_positions[unfound[c_idx]]
-                rel_t = (target_pos - pos) / self.world_size
-                survivor_feat = [rel_t[0], rel_t[1], rel_t[2], 1.0]
+            sorted_indices = np.argsort(dists)
+            for s_cand in sorted_indices:
+                cand_idx = unfound[s_cand]
+                cand_dist = dists[s_cand]
+                if cand_dist > self.survivor_detect_radius:
+                    break
+                target_pos = self.survivor_positions[cand_idx]
+                has_los = True
+                if self.enable_thermal_los and self.perception_obstacles:
+                    has_los = _los_clear(pos, target_pos, self.perception_obstacles)
+                if has_los:
+                    rel_t = (target_pos - pos) / self.world_size
+                    survivor_feat = [rel_t[0], rel_t[1], rel_t[2], 1.0]
+                    break
 
         obs = np.concatenate([self_state, neighbor_feats, survivor_feat]).astype(np.float32)
 
@@ -233,24 +284,40 @@ class SwarmEnv(ParallelEnv):
         old_positions = {a: self.agent_positions[a].copy() for a in self.agents}
         rewards = {agent: -0.01 for agent in self.agents}
 
-        # Apply Safety Shield Hook if provided by Arkendu
+        # Apply Safety Shield Hook if provided by Arkendu or built-in deterministic shield
         effective_actions = {}
         for agent in self.agents:
             raw_act = actions.get(agent, np.zeros(3, dtype=np.float32))
             if self.safety_shield_hook is not None:
                 effective_actions[agent] = self.safety_shield_hook(agent, raw_act, self)
+            elif self.enable_safety_shield and self.safety_shield is not None:
+                p_cur = tuple(float(x) for x in self.agent_positions[agent])
+                v_des = tuple(float(x) for x in self.agent_velocities[agent] + np.clip(raw_act, -1.0, 1.0) * self.accel_scale)
+                neighbors = [
+                    Neighbor(
+                        position=tuple(float(x) for x in self.agent_positions[o]),
+                        velocity=tuple(float(x) for x in self.agent_velocities[o]),
+                    )
+                    for o in self.agents if o != agent
+                ]
+                shield_res = self.safety_shield.filter_velocity(
+                    p_cur, v_des, obstacles=self.safety_aabbs, neighbors=neighbors
+                )
+                self.agent_velocities[agent] = np.array(shield_res.velocity, dtype=np.float32)
+                effective_actions[agent] = None
             else:
                 effective_actions[agent] = raw_act
 
         # 1. 3D Kinematics Integration
         for agent in self.agents:
-            act = np.clip(effective_actions[agent], -1.0, 1.0)
-            self.agent_velocities[agent] += act * self.accel_scale
+            if effective_actions[agent] is not None:
+                act = np.clip(effective_actions[agent], -1.0, 1.0)
+                self.agent_velocities[agent] += act * self.accel_scale
 
-            # Velocity capping
-            spd = np.linalg.norm(self.agent_velocities[agent])
-            if spd > self.max_speed:
-                self.agent_velocities[agent] = (self.agent_velocities[agent] / spd) * self.max_speed
+                # Velocity capping
+                spd = np.linalg.norm(self.agent_velocities[agent])
+                if spd > self.max_speed:
+                    self.agent_velocities[agent] = (self.agent_velocities[agent] / spd) * self.max_speed
 
             # 3D Position update
             self.agent_positions[agent] += self.agent_velocities[agent]
@@ -313,12 +380,17 @@ class SwarmEnv(ParallelEnv):
             if not self.survivor_found[s_idx]:
                 s_pos = self.survivor_positions[s_idx]
                 for agent in self.agents:
-                    if np.linalg.norm(self.agent_positions[agent] - s_pos) <= self.survivor_rescue_radius:
-                        self.survivor_found[s_idx] = True
-                        rewards[agent] += 15.0
-                        for other in self.agents:
-                            rewards[other] += 5.0
-                        break
+                    dist_to_survivor = float(np.linalg.norm(self.agent_positions[agent] - s_pos))
+                    if dist_to_survivor <= self.survivor_rescue_radius:
+                        has_los = True
+                        if self.enable_thermal_los and self.perception_obstacles:
+                            has_los = _los_clear(self.agent_positions[agent], s_pos, self.perception_obstacles)
+                        if has_los:
+                            self.survivor_found[s_idx] = True
+                            rewards[agent] += 15.0
+                            for other in self.agents:
+                                rewards[other] += 5.0
+                            break
 
         done = self.current_step >= self.max_steps or bool(np.all(self.survivor_found))
         terminations = {agent: bool(np.all(self.survivor_found)) for agent in self.agents}
@@ -367,3 +439,66 @@ class SwarmEnv(ParallelEnv):
 
     def action_space(self, agent):
         return self.action_spaces[agent]
+
+    def get_thermal_contacts(self, agent_id: str):
+        """
+        Extracts two-stage thermal contacts (faint vs confirmed) for an agent,
+        incorporating line-of-sight obstruction from obstacles (Bhargav's model).
+        """
+        pos = self.agent_positions[agent_id]
+        faint_contacts = []
+        confirmed_contacts = []
+        for s_idx in range(self.num_survivors):
+            if self.survivor_found[s_idx]:
+                continue
+            s_pos = self.survivor_positions[s_idx]
+            dist = float(np.linalg.norm(s_pos - pos))
+            if dist <= self.survivor_detect_radius:
+                los_clear = True
+                if self.enable_thermal_los and self.perception_obstacles:
+                    los_clear = _los_clear(pos, s_pos, self.perception_obstacles)
+                if los_clear:
+                    contact_info = {
+                        "id": f"survivor_{s_idx}",
+                        "index": s_idx,
+                        "distance": dist,
+                        "position": s_pos.copy(),
+                    }
+                    if dist <= self.survivor_rescue_radius:
+                        confirmed_contacts.append(contact_info)
+                    else:
+                        faint_contacts.append(contact_info)
+        return {"faint": faint_contacts, "confirmed": confirmed_contacts}
+
+    def get_consensus_observations(self, step: int):
+        """
+        Generates Observation reports from all drones detecting survivors,
+        ready for decentralized Bayesian fusion in Somnath's ConsensusEngine.
+        """
+        from src.coordination.consensus_engine import Observation
+        observations = []
+        for idx, agent_id in enumerate(self.agents):
+            contacts = self.get_thermal_contacts(agent_id)
+            for c in contacts["confirmed"]:
+                observations.append(
+                    Observation(
+                        drone_id=idx,
+                        sensor="thermal",
+                        position=(float(c["position"][0]), float(c["position"][1]), float(c["position"][2])),
+                        confidence=0.95,
+                        timestamp=step,
+                    )
+                )
+            for f in contacts["faint"]:
+                conf = max(0.55, 0.85 - (f["distance"] / self.survivor_detect_radius) * 0.3)
+                observations.append(
+                    Observation(
+                        drone_id=idx,
+                        sensor="thermal",
+                        position=(float(f["position"][0]), float(f["position"][1]), float(f["position"][2])),
+                        confidence=float(conf),
+                        timestamp=step,
+                    )
+                )
+        return observations
+

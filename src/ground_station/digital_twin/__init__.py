@@ -8,13 +8,43 @@ Responsibilities:
 - High-performance GPU utility setup.
 """
 
-from .environment_generator import ProceduralDisasterEnvironment, GeneratedObstacle
-from .view_drone import SingleDroneViewer
-from .gpu_utils import setup_high_performance_gpu
+from .environment_generator import ProceduralEnvironmentGenerator, GeneratedObstacle
+# Backward-compatibility alias
+ProceduralDisasterEnvironment = ProceduralEnvironmentGenerator
+
+from .swarm_scene_builder import (
+    build_swarm_scene_xml,
+    generate_drone_body_xml,
+    generate_compact_disaster_city,
+    DRONE_PALETTES,
+)
+
+try:
+    from .view_swarm import SwarmMuJoCoViewer
+except (ImportError, ModuleNotFoundError):
+    SwarmMuJoCoViewer = None
+
+try:
+    from .view_drone import SingleDroneViewer
+except (ImportError, ModuleNotFoundError):
+    SingleDroneViewer = None
+
+try:
+    from .gpu_utils import setup_high_performance_gpu
+except (ImportError, ModuleNotFoundError):
+    def setup_high_performance_gpu():
+        return False
 
 __all__ = [
+    "ProceduralEnvironmentGenerator",
     "ProceduralDisasterEnvironment",
     "GeneratedObstacle",
     "SingleDroneViewer",
+    "SwarmMuJoCoViewer",
+    "build_swarm_scene_xml",
+    "generate_drone_body_xml",
+    "generate_compact_disaster_city",
+    "DRONE_PALETTES",
     "setup_high_performance_gpu",
 ]
+

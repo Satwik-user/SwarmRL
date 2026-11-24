@@ -98,6 +98,29 @@ BARE_PROTOTYPE_XML = """<mujoco model="prototype_drone_inspection">
 </mujoco>"""
 
 
+def is_gui_available() -> bool:
+    """Checks if an interactive graphical window/display can actually be opened."""
+    if sys.platform != "win32" and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+        return False
+    try:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            import glfw
+            if not glfw.init():
+                return False
+            glfw.window_hint(glfw.VISIBLE, False)
+            test_win = glfw.create_window(64, 64, "test", None, None)
+            if not test_win:
+                glfw.terminate()
+                return False
+            glfw.destroy_window(test_win)
+            glfw.terminate()
+            return True
+    except Exception:
+        return False
+
+
 class SingleDroneViewer:
     """Manages 3D inspection, camera orbit, animations, and telemetry for a single drone in MuJoCo."""
 
@@ -339,6 +362,21 @@ class SingleDroneViewer:
 
     def run(self) -> None:
         """Launches the interactive MuJoCo viewer and runs the inspection loop."""
+        if not is_gui_available():
+            print("\n" + "=" * 76)
+            print("  [Digital Twin] Single Drone MuJoCo Model Inspector")
+            print("=" * 76)
+            print("  [NOTICE] 3D OpenGL display window requires an active desktop display context.")
+            print("           Running on headless Linux / WSL without X11 server.")
+            print("  [INFO]   Model verification passed: Disaster Response UAV successfully loaded!")
+            print(f"           - Model Bodies: {self.model.nbody}")
+            print(f"           - Geometric Primitives: {self.model.ngeom}")
+            print(f"           - Degrees of Freedom: {self.model.nv}")
+            print("  [INFO]   On a teammate's machine with GPU and display (e.g. Windows / Ubuntu),")
+            print("           this command launches the interactive 60 FPS 3D showroom viewer.")
+            print("=" * 76 + "\n")
+            return
+
         os.system("cls" if os.name == "nt" else "clear")
 
         enable_high_resolution_timer()

@@ -7,7 +7,8 @@ contacts and explored-cell maps are optional (configurable).
 
 
 def share_knowledge(drones, knowledge, nearby, mission,
-                    share_faint: bool = False, share_maps: bool = True) -> int:
+                    share_faint: bool = False, share_maps: bool = True,
+                    mesh_simulator=None) -> int:
     id_to_idx = {d.id: i for i, d in enumerate(drones)}
     share_events = 0
     for i, neighbors in enumerate(nearby):
@@ -15,6 +16,13 @@ def share_knowledge(drones, knowledge, nearby, mission,
             j = id_to_idx.get(nd["drone_id"])
             if j is None or j <= i:
                 continue  # each unordered pair once
+
+            # Channel degradation & packet drop simulation if MeshNetworkSimulator is connected
+            if mesh_simulator is not None:
+                in_range, loss_prob = mesh_simulator.can_communicate(drones[i].pos, drones[j].pos)
+                if not in_range or not mesh_simulator.is_packet_delivered(loss_prob):
+                    continue
+
             mission.comm_links += 1
             a, b = knowledge[i], knowledge[j]
             new_a = b.confirmed - a.confirmed

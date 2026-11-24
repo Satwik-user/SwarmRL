@@ -7,6 +7,11 @@ Responsibilities:
 - Automated metric logging, plot generation, and academic report exports.
 """
 from .metrics_logger import MetricsLogger
-from . import digital_twin
 
-__all__ = ["MetricsLogger", "digital_twin"]
+try:
+    from . import digital_twin
+    __all__ = ["MetricsLogger", "digital_twin"]
+except Exception:
+    digital_twin = None
+    __all__ = ["MetricsLogger"]
+

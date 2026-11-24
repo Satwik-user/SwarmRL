@@ -4,7 +4,7 @@ import sys
 # Ensure repository root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from train_mappo import train, args if "args" in locals() else None
+from train_mappo import train
 
 if __name__ == "__main__":
     import argparse
@@ -25,9 +25,10 @@ if __name__ == "__main__":
     parser.add_argument("--clip-ratio", type=float, default=0.2)
     parser.add_argument("--save-interval", type=int, default=10)
     parser.add_argument("--checkpoint-dir", type=str, default="checkpoints")
+    parser.add_argument("--warmstart", type=str, default=None, help="Path to BC warm-start actor checkpoint")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cpu", action="store_true")
 
     args = parser.parse_args()
-    from train_mappo import train
     train(args)
+
